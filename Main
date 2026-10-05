@@ -1,0 +1,1006 @@
+-- =====================================================================
+-- VOMAGLA x NyxonUI — FULL STANDALONE BUILD
+-- =====================================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local RS = game:GetService("ReplicatedStorage")
+local WS = game:GetService("Workspace")
+local TS = game:GetService("TweenService")
+local Light = game:GetService("Lighting")
+local CoreGui = game:GetService("CoreGui")
+local SS = game:GetService("SoundService")
+local Debris = game:GetService("Debris")
+local LP = Players.LocalPlayer
+local cam = WS.CurrentCamera
+
+local BG      = Color3.fromRGB(20,20,24)
+local PANEL   = Color3.fromRGB(24,24,29)
+local BLUE    = Color3.fromRGB(28,98,210)
+local WHITE   = Color3.fromRGB(235,235,235)
+local GRAY    = Color3.fromRGB(160,160,165)
+local CHKBG   = Color3.fromRGB(26,26,31)
+local BARBG   = Color3.fromRGB(28,28,34)
+local BARFILL = Color3.fromRGB(22,90,205)
+local DROPBG  = Color3.fromRGB(22,22,27)
+local PIXEL   = Color3.fromRGB(200,200,205)
+
+local S = {
+    Unloaded=false, Manipulation=false, KillNotify=false,
+    SA={Enabled=false,TargetPart="HeadHitbox",TargetMode="Distance",FOVRadius=200,MaxDistance=500,VisibleCheck=true,HitChance=100,ShowFOV=true,TargetLine=false},
+    Rage={Enabled=false,TargetPart="HeadHitbox",MaxDistance=550,VisibleCheck=true,AutoShoot=false,FireDelay=0.01,LastFire=0},
+    ESP={Enabled=false,Box=false,BoxType="2D",BoxGlow=false,Filled=false,Chams=false,ChamsStrength=38,Name=false,Distance=false,HealthBar=false,TargetHUD=false,Weapon=false,Walking=false,Jumping=false,Swimming=false,SafeZone=false,MaxDistance=1000},
+    ESPColors={Box=Color3.fromRGB(0,255,255),GlowTop=Color3.fromRGB(0,255,255),GlowBottom=Color3.fromRGB(0,255,255),GradientTop=Color3.fromRGB(255,255,255),GradientBottom=Color3.fromRGB(0,255,255),FillTop=Color3.fromRGB(255,255,255),FillBottom=Color3.fromRGB(0,255,255)},
+    Team={Enabled=false,Teammates={},SelectedNames={},Color=Color3.fromRGB(0,255,0)},
+    Hitbox={Enabled=false,Size=5,Color=Color3.fromRGB(255,0,0),Transparency=0.2},
+    Guns={RapidFire=false,RapidSpeed=0.02,FullAuto=false,MeleeMods=false,MeleeSpeed=0.05,MeleeRange=5},
+    Reload={Enabled=false,Auto=false,IsReloading=false,ReloadUntil=0},
+    AutoFire={Enabled=false,Delay=0.01,LastFire=0},
+    Speed={Enabled=false,Value=30}, CopterSpeed={Enabled=false,Value=50}, WaterSpeed={Enabled=false,Value=50},
+    FOVCam={Enabled=false,Value=70}, ThirdPerson={Enabled=false,Distance=10,Height=0},
+    Spider={Enabled=false,Speed=50}, JumpStun={Enabled=false,Height=100},
+    JumpCircle={Enabled=false,Color=Color3.fromRGB(0,170,255)},
+    CopterFly={Enabled=false,Speed=100,bodyVel=nil,bodyGyro=nil},
+    Spinner={Enabled=false,Speed=180}, XRay={Enabled=false,Transparency=0.5},
+    Water={Enabled=false,Color=Color3.fromRGB(128,128,128),Reflectance=0.3,OrigColor=nil,OrigRef=nil},
+    HitSound={Enabled=false,Choice="None",Volume=1,Originals={}}, KillSound={Enabled=false,Volume=1},
+    HL={Enabled=false,Color=Color3.fromRGB(176,176,209),Position="Center",Duration=5},
+    HM={Enabled=false,Color=Color3.new(1,1,1),KillColor=Color3.fromRGB(220,80,80),Size=12,Thickness=2,Duration=2.5},
+    CH={Enabled=false,Color=Color3.new(1,1,1),Rainbow=false,Length=8,Gap=4,Thickness=1.5,Dot=false,RotationSpeed=0,Pulse=false,PulseSpeed=3,FollowTarget=false,FollowSmooth=8,FollowAimPoint=false},
+    DamageFX={Enabled=false,Style="Foam",Color=Color3.fromRGB(255,60,60),Count=12,Speed=20,Size=0.25,Lifetime=0.8,Rainbow=false},
+    Tracers={Enabled=false,Color=Color3.fromRGB(255,255,255),TextureID="rbxassetid://12781852245",Width=1.5,Transparency=0,LifeTime=0.5},
+    ToolHL={Enabled=false,Color=Color3.new(1,1,1)},
+}
+
+local F = {char=nil,hum=nil,targetPart=nil,targetPos=nil,aimScreenPos=nil,conns={},playerCache={},
+           Notify=function() end,lastTargetPlayer=nil,lastTargetTime=0,
+           lastConfirmedShotPlayer=nil,lastConfirmedShotTime=0}
+
+local floor,clamp,abs,rad,exp,cos,sin = math.floor,math.clamp,math.abs,math.rad,math.exp,math.cos,math.sin
+local tick,typeof,pairs,ipairs,pcall,next = tick,typeof,pairs,ipairs,pcall,next
+local unpack = table.unpack or unpack
+local fmt,find = string.format,string.find
+local spawn,delay,wait,defer = task.spawn,task.delay,task.wait,task.defer
+local clock = os.clock
+local V2,V3,CF = Vector2.new,Vector3.new,CFrame.new
+
+local DrawingOK = pcall(function() local t=Drawing.new("Line"); t:Remove() end)
+
+-- ===== УТИЛИТЫ UI =====
+local function stroke(o,c,t)
+    local s=Instance.new("UIStroke"); s.Color=c or BLUE; s.Thickness=t or 1; s.Parent=o; return s
+end
+local function mkLabel(p,t,x,y,w,h,sz,col)
+    local l=Instance.new("TextLabel")
+    l.Position=UDim2.new(0,x,0,y); l.Size=UDim2.new(0,w,0,h)
+    l.BackgroundTransparency=1; l.Text=t or ""; l.TextColor3=col or WHITE
+    l.Font=Enum.Font.Code; l.TextSize=sz or 13
+    l.TextXAlignment=Enum.TextXAlignment.Left; l.Parent=p; return l
+end
+local function div(p,y,c)
+    local d=Instance.new("Frame"); d.Size=UDim2.new(1,0,0,1); d.Position=UDim2.new(0,0,0,y)
+    d.BackgroundColor3=c or BLUE; d.BorderSizePixel=0; d.Parent=p
+end
+
+-- ===== CHARACTER TRACK =====
+do
+    F.char=LP.Character
+    F.hum=F.char and F.char:FindFirstChildWhichIsA("Humanoid")
+    local function upd(c)
+        F.char=c; F.hum=nil
+        if c then
+            local h=c:FindFirstChildWhichIsA("Humanoid")
+            if h then F.hum=h else spawn(function() local h2=c:WaitForChild("Humanoid",15); if h2 and F.char==c then F.hum=h2 end end) end
+        end
+    end
+    F.conns[#F.conns+1]=LP.CharacterAdded:Connect(upd)
+    F.conns[#F.conns+1]=LP.CharacterRemoving:Connect(function() F.char=nil; F.hum=nil end)
+    if F.char then upd(F.char) end
+    for _,p in ipairs(Players:GetPlayers()) do if p~=LP then F.playerCache[p]=true end end
+    F.conns[#F.conns+1]=Players.PlayerAdded:Connect(function(p) if p~=LP then F.playerCache[p]=true end end)
+    F.conns[#F.conns+1]=Players.PlayerRemoving:Connect(function(p) F.playerCache[p]=nil end)
+end
+
+local function isTeammate(p)
+    if not S.Team.Enabled or not p or p==LP then return false end
+    if S.Team.Teammates[p.UserId] then return true end
+    return S.Team.SelectedNames[p.Name] or S.Team.SelectedNames[p.DisplayName]
+end
+
+-- ===== UI =====
+local ScreenGui=Instance.new("ScreenGui")
+ScreenGui.Name="VomaglaNyxon"; ScreenGui.ResetOnSpawn=false
+pcall(function() ScreenGui.Parent=CoreGui end)
+if not ScreenGui.Parent then ScreenGui.Parent=LP:WaitForChild("PlayerGui") end
+
+local Main=Instance.new("Frame")
+Main.Size=UDim2.new(0,500,0,540); Main.Position=UDim2.new(0.5,-250,0.5,-270)
+Main.BackgroundColor3=BG; Main.BorderSizePixel=0; Main.ClipsDescendants=true; Main.Parent=ScreenGui
+stroke(Main,BLUE,1.5)
+
+local TB=Instance.new("Frame"); TB.Size=UDim2.new(1,0,0,28); TB.BackgroundColor3=BG
+TB.BorderSizePixel=0; TB.Parent=Main
+mkLabel(TB,"VOMAGLA  |  Nyxon Edition",8,0,400,28,13,WHITE)
+
+local dragging,dragStart,startPos=false,nil,nil
+TB.InputBegan:Connect(function(i)
+    if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+        dragging=true; dragStart=i.Position; startPos=Main.Position
+    end
+end)
+UIS.InputChanged:Connect(function(i)
+    if dragging and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
+        local d=i.Position-dragStart
+        Main.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,startPos.Y.Scale,startPos.Y.Offset+d.Y)
+    end
+end)
+UIS.InputEnded:Connect(function(i)
+    if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=false end
+end)
+div(Main,28)
+
+-- ===== CONTROLS =====
+local C={}; C.__index=C
+function C:Section(t)
+    local r=Instance.new("Frame"); r.Size=UDim2.new(1,-8,0,26); r.BackgroundTransparency=1; r.Parent=self.H
+    mkLabel(r,t,6,4,440,20,14,BLUE); div(r,24,Color3.fromRGB(60,60,70))
+end
+function C:Label(t)
+    local r=Instance.new("Frame"); r.Size=UDim2.new(1,-8,0,18); r.BackgroundTransparency=1; r.Parent=self.H
+    mkLabel(r,t,6,0,440,18,12,GRAY)
+end
+function C:Toggle(name,def,cb)
+    local r=Instance.new("Frame"); r.Size=UDim2.new(1,-8,0,24); r.BackgroundTransparency=1; r.Parent=self.H
+    local box=Instance.new("Frame"); box.Position=UDim2.new(0,6,0,4); box.Size=UDim2.new(0,16,0,16)
+    box.BackgroundColor3=CHKBG; box.BorderSizePixel=0; box.Parent=r; stroke(box,Color3.fromRGB(80,80,90),1)
+    local ck=Instance.new("Frame"); ck.Position=UDim2.new(0,3,0,3); ck.Size=UDim2.new(0,10,0,10)
+    ck.BackgroundColor3=BLUE; ck.BorderSizePixel=0; ck.Visible=def or false; ck.Parent=box
+    mkLabel(r,name,30,0,400,24,13,WHITE)
+    local b=Instance.new("TextButton"); b.Size=UDim2.new(1,0,1,0); b.BackgroundTransparency=1; b.Text=""; b.Parent=r
+    local st=def or false
+    b.MouseButton1Click:Connect(function() st=not st; ck.Visible=st; if cb then pcall(cb,st) end end)
+    return {Set=function(v) st=v; ck.Visible=v; if cb then pcall(cb,v) end end}
+end
+function C:Slider(name,min,max,def,round,cb)
+    local r=Instance.new("Frame"); r.Size=UDim2.new(1,-8,0,40); r.BackgroundTransparency=1; r.Parent=self.H
+    mkLabel(r,name,6,0,320,16,13,WHITE)
+    local vl=mkLabel(r,tostring(def),320,0,90,16,13,BLUE); vl.TextXAlignment=Enum.TextXAlignment.Right
+    local bar=Instance.new("Frame"); bar.Position=UDim2.new(0,6,0,22); bar.Size=UDim2.new(1,-12,0,8)
+    bar.BackgroundColor3=BARBG; bar.BorderSizePixel=0; bar.Parent=r; stroke(bar,BLUE,1)
+    local fl=Instance.new("Frame"); fl.Size=UDim2.new((def-min)/(max-min),0,1,0)
+    fl.BackgroundColor3=BARFILL; fl.BorderSizePixel=0; fl.Parent=bar
+    local dr=false
+    local function upd(i)
+        local rel=clamp((i.Position.X-bar.AbsolutePosition.X)/bar.AbsoluteSize.X,0,1)
+        local v=min+(max-min)*rel
+        if round then local m=10^round; v=floor(v*m+0.5)/m end
+        fl.Size=UDim2.new(rel,0,1,0); vl.Text=tostring(v)
+        if cb then pcall(cb,v) end
+    end
+    local b=Instance.new("TextButton"); b.Size=UDim2.new(1,0,1,0); b.BackgroundTransparency=1; b.Text=""; b.Parent=r
+    b.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dr=true; upd(i) end end)
+    UIS.InputChanged:Connect(function(i) if dr and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then upd(i) end end)
+    UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dr=false end end)
+end
+function C:Dropdown(name,vals,def,cb)
+    local r=Instance.new("Frame"); r.Size=UDim2.new(1,-8,0,52); r.BackgroundTransparency=1; r.ClipsDescendants=false; r.Parent=self.H
+    mkLabel(r,name,6,0,320,16,13,WHITE)
+    local box=Instance.new("Frame"); box.Position=UDim2.new(0,6,0,20); box.Size=UDim2.new(1,-12,0,24)
+    box.BackgroundColor3=DROPBG; box.BorderSizePixel=0; box.Parent=r; stroke(box,BLUE,1)
+    local cur=def or vals[1]
+    local tx=mkLabel(box,tostring(cur),6,0,260,24,13,WHITE)
+    local ar=mkLabel(box,"v",0,0,0,24,11,WHITE); ar.Position=UDim2.new(1,-20,0,0); ar.Size=UDim2.new(0,16,1,0)
+    local lf=Instance.new("Frame"); lf.Position=UDim2.new(0,0,1,2); lf.Size=UDim2.new(1,0,0,#vals*22)
+    lf.BackgroundColor3=DROPBG; lf.BorderSizePixel=0; lf.Visible=false; lf.ZIndex=20; lf.Parent=box; stroke(lf,BLUE,1)
+    for i,v in ipairs(vals) do
+        local o=Instance.new("TextButton"); o.Size=UDim2.new(1,0,0,22); o.Position=UDim2.new(0,0,0,(i-1)*22)
+        o.BackgroundTransparency=1; o.Text=tostring(v); o.TextColor3=WHITE; o.Font=Enum.Font.Code
+        o.TextSize=12; o.TextXAlignment=Enum.TextXAlignment.Left; o.ZIndex=21; o.Parent=lf
+        o.MouseButton1Click:Connect(function() cur=v; tx.Text=tostring(v); lf.Visible=false; if cb then pcall(cb,v) end end)
+    end
+    local b=Instance.new("TextButton"); b.Size=UDim2.new(1,0,1,0); b.BackgroundTransparency=1; b.Text=""; b.Parent=box
+    b.MouseButton1Click:Connect(function() lf.Visible=not lf.Visible end)
+end
+function C:Keybind(name,def,cb)
+    local r=Instance.new("Frame"); r.Size=UDim2.new(1,-8,0,28); r.BackgroundTransparency=1; r.Parent=self.H
+    mkLabel(r,name,6,0,320,28,13,WHITE)
+    local b=Instance.new("TextButton"); b.Position=UDim2.new(1,-80,0,4); b.Size=UDim2.new(0,74,0,20)
+    b.BackgroundColor3=DROPBG; b.Text=def or "None"; b.TextColor3=WHITE; b.Font=Enum.Font.Code
+    b.TextSize=12; b.BorderSizePixel=0; b.Parent=r; stroke(b,BLUE,1)
+    local ls=false; local cur=def or "None"; local st=false
+    b.MouseButton1Click:Connect(function() ls=true; b.Text="..." end)
+    UIS.InputBegan:Connect(function(i,gp)
+        if gp then return end
+        if ls and i.UserInputType==Enum.UserInputType.Keyboard then
+            cur=i.KeyCode.Name; b.Text=cur; ls=false
+        elseif not ls and i.KeyCode.Name==cur then
+            st=not st; if cb then pcall(cb,st) end
+        end
+    end)
+end
+function C:Color(name,def,cb)
+    local r=Instance.new("Frame"); r.Size=UDim2.new(1,-8,0,30); r.BackgroundTransparency=1; r.Parent=self.H
+    mkLabel(r,name,6,0,320,30,13,WHITE)
+    local pr=Instance.new("Frame"); pr.Position=UDim2.new(1,-80,0,6); pr.Size=UDim2.new(0,72,0,18)
+    pr.BackgroundColor3=def or WHITE; pr.BorderSizePixel=0; pr.Parent=r; stroke(pr,BLUE,1)
+    local b=Instance.new("TextButton"); b.Size=UDim2.new(1,0,1,0); b.BackgroundTransparency=1; b.Text=""; b.Parent=pr
+    local pal={Color3.new(1,1,1),Color3.new(0,0,0),Color3.fromRGB(255,50,50),Color3.fromRGB(50,255,50),Color3.fromRGB(50,150,255),Color3.fromRGB(255,255,50),Color3.fromRGB(255,50,255),Color3.fromRGB(0,255,255),Color3.fromRGB(255,140,0)}
+    local i=1
+    b.MouseButton1Click:Connect(function() i=i%#pal+1; pr.BackgroundColor3=pal[i]; if cb then pcall(cb,pal[i]) end end)
+end
+
+-- ===== ТАБЫ =====
+local names={"Combat","Visuals","Player","Misc"}
+local btns,pages={},{}
+local TBF=Instance.new("Frame"); TBF.Size=UDim2.new(1,0,0,28); TBF.Position=UDim2.new(0,0,0,29)
+TBF.BackgroundColor3=BG; TBF.BorderSizePixel=0; TBF.Parent=Main
+for i,n in ipairs(names) do
+    local b=Instance.new("TextButton"); b.Size=UDim2.new(0.25,0,1,0); b.Position=UDim2.new((i-1)*0.25,0,0,0)
+    b.BackgroundTransparency=1; b.Text=n; b.TextColor3=WHITE; b.Font=Enum.Font.Code; b.TextSize=13
+    b.AutoButtonColor=false; b.BorderSizePixel=0; b.Parent=TBF; btns[i]=b
+end
+local tl=Instance.new("Frame"); tl.Size=UDim2.new(0.25,0,0,2); tl.Position=UDim2.new(0,0,1,-2)
+tl.BackgroundColor3=BLUE; tl.BorderSizePixel=0; tl.Parent=TBF
+div(Main,57)
+local PC=Instance.new("Frame"); PC.Position=UDim2.new(0,0,0,58); PC.Size=UDim2.new(1,0,1,-58)
+PC.BackgroundTransparency=1; PC.Parent=Main
+local function mkPage()
+    local sc=Instance.new("ScrollingFrame"); sc.Size=UDim2.new(1,-8,1,-8); sc.Position=UDim2.new(0,4,0,4)
+    sc.BackgroundColor3=PANEL; sc.BorderSizePixel=0; sc.ScrollBarThickness=4
+    sc.ScrollBarImageColor3=BLUE; sc.CanvasSize=UDim2.new(0,0,0,0); sc.Visible=false; sc.Parent=PC
+    stroke(sc,PIXEL,1)
+    local l=Instance.new("UIListLayout"); l.SortOrder=Enum.SortOrder.LayoutOrder; l.Padding=UDim.new(0,2); l.Parent=sc
+    l:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        sc.CanvasSize=UDim2.new(0,0,0,l.AbsoluteContentSize.Y+8)
+    end)
+    return sc
+end
+for i=1,4 do pages[i]=mkPage() end
+local function sw(i) for k,p in ipairs(pages) do p.Visible=(k==i) end; tl.Position=UDim2.new((i-1)*0.25,0,1,-2) end
+sw(1)
+for i,b in ipairs(btns) do b.MouseButton1Click:Connect(function() sw(i) end) end
+local function mkC(p) return setmetatable({H=p},C) end
+local CB,VI,PL,MS=mkC(pages[1]),mkC(pages[2]),mkC(pages[3]),mkC(pages[4])
+
+-- ===== COMBAT =====
+CB:Section("Silent Aim")
+CB:Toggle("Silent Aim",false,function(v) S.SA.Enabled=v end)
+CB:Keybind("SA Key","P",function() S.SA.Enabled=not S.SA.Enabled end)
+CB:Dropdown("Target Part",{"HeadHitbox","Head","HumanoidRootPart"},"HeadHitbox",function(v) S.SA.TargetPart=v end)
+CB:Dropdown("Selection",{"Distance","Cursor"},"Distance",function(v) S.SA.TargetMode=v end)
+CB:Toggle("Visible Check",true,function(v) S.SA.VisibleCheck=v end)
+CB:Toggle("Manipulation (если не регает)",false,function(v) S.Manipulation=v end)
+CB:Toggle("Show FOV",true,function(v) S.SA.ShowFOV=v end)
+CB:Toggle("Target Line",false,function(v) S.SA.TargetLine=v end)
+CB:Slider("FOV Radius",10,500,200,0,function(v) S.SA.FOVRadius=v end)
+CB:Slider("Max Distance",50,3000,500,0,function(v) S.SA.MaxDistance=v end)
+CB:Slider("Hit Chance %",0,100,100,0,function(v) S.SA.HitChance=v end)
+CB:Section("Rage Bot")
+CB:Toggle("Rage Bot",false,function(v) S.Rage.Enabled=v end)
+CB:Keybind("Rage Key","Y",function() S.Rage.Enabled=not S.Rage.Enabled end)
+CB:Dropdown("Rage Target",{"HeadHitbox","Head","HumanoidRootPart"},"HeadHitbox",function(v) S.Rage.TargetPart=v end)
+CB:Toggle("Rage Visible",true,function(v) S.Rage.VisibleCheck=v end)
+CB:Toggle("Auto Shoot",false,function(v) S.Rage.AutoShoot=v; S.Rage.LastFire=0 end)
+CB:Slider("Fire Delay",0.01,0.5,0.01,2,function(v) S.Rage.FireDelay=v end)
+CB:Slider("Rage Max Dist",100,2222,550,0,function(v) S.Rage.MaxDistance=v end)
+CB:Section("Auto Fire")
+CB:Toggle("Auto Fire",false,function(v) S.AutoFire.Enabled=v; S.AutoFire.LastFire=0 end)
+CB:Slider("Auto Fire Delay",0.01,0.5,0.01,2,function(v) S.AutoFire.Delay=v end)
+CB:Section("Gun Mods")
+CB:Toggle("Rapid Fire",false,function(v) S.Guns.RapidFire=v end)
+CB:Slider("Rapid Speed",0.01,0.5,0.02,2,function(v) S.Guns.RapidSpeed=v end)
+CB:Toggle("Full Auto",false,function(v) S.Guns.FullAuto=v end)
+CB:Toggle("Melee Mods",false,function(v) S.Guns.MeleeMods=v end)
+CB:Slider("Melee Speed",0.01,0.5,0.05,2,function(v) S.Guns.MeleeSpeed=v end)
+CB:Slider("Melee Range",5,30,5,0,function(v) S.Guns.MeleeRange=v end)
+CB:Toggle("Auto Reload",false,function(v) S.Reload.Auto=v end)
+CB:Section("Hitbox Expander")
+CB:Toggle("Expand Hitbox",false,function(v)
+    S.Hitbox.Enabled=v
+    if v and F.InitHitboxWatchers then F.InitHitboxWatchers() end
+    if not v and F.RestoreAllHitboxes then F.RestoreAllHitboxes() end
+end)
+CB:Slider("Hitbox Size",5,20,5,1,function(v) S.Hitbox.Size=v; if F.UpdateAllHitboxes then F.UpdateAllHitboxes() end end)
+CB:Slider("Hitbox Transp",0,1,0.2,2,function(v) S.Hitbox.Transparency=v; if F.ApplyHitboxVisuals then F.ApplyHitboxVisuals() end end)
+
+-- ===== VISUALS =====
+VI:Section("ESP")
+VI:Toggle("ESP Enabled",false,function(v) S.ESP.Enabled=v end)
+VI:Slider("ESP Max Distance",50,2222,1000,0,function(v) S.ESP.MaxDistance=v end)
+VI:Toggle("Boxes",false,function(v) S.ESP.Box=v end)
+VI:Dropdown("Box Type",{"2D","Corner"},"2D",function(v) S.ESP.BoxType=v end)
+VI:Toggle("Box Glow",false,function(v) S.ESP.BoxGlow=v end)
+VI:Toggle("Filled",false,function(v) S.ESP.Filled=v end)
+VI:Toggle("Chams",false,function(v) S.ESP.Chams=v end)
+VI:Slider("Chams Strength",0,100,38,0,function(v) S.ESP.ChamsStrength=v end)
+VI:Toggle("Name",false,function(v) S.ESP.Name=v end)
+VI:Toggle("Distance",false,function(v) S.ESP.Distance=v end)
+VI:Toggle("Health Bar",false,function(v) S.ESP.HealthBar=v end)
+VI:Toggle("Weapon",false,function(v) S.ESP.Weapon=v end)
+VI:Toggle("Walking",false,function(v) S.ESP.Walking=v end)
+VI:Toggle("Jumping",false,function(v) S.ESP.Jumping=v end)
+VI:Toggle("Swimming",false,function(v) S.ESP.Swimming=v end)
+VI:Toggle("Safe Zone Flag",false,function(v) S.ESP.SafeZone=v end)
+VI:Toggle("Target HUD",false,function(v) S.ESP.TargetHUD=v end)
+VI:Section("Colors")
+VI:Color("Box",S.ESPColors.Box,function(v) S.ESPColors.Box=v end)
+VI:Color("Gradient Top",S.ESPColors.GradientTop,function(v) S.ESPColors.GradientTop=v end)
+VI:Color("Gradient Bottom",S.ESPColors.GradientBottom,function(v) S.ESPColors.GradientBottom=v end)
+VI:Color("Glow Top",S.ESPColors.GlowTop,function(v) S.ESPColors.GlowTop=v end)
+VI:Color("Glow Bottom",S.ESPColors.GlowBottom,function(v) S.ESPColors.GlowBottom=v end)
+VI:Section("Bullet Tracers")
+VI:Toggle("Tracers",false,function(v) S.Tracers.Enabled=v end)
+VI:Dropdown("Texture",{"Beam","Lightning","Heartrate","Chain","Glitch","Swirl"},"Beam",function(v)
+    local m={Beam="rbxassetid://12781852245",Lightning="rbxassetid://446111271",Heartrate="rbxassetid://5830549480",Chain="rbxassetid://9632168658",Glitch="rbxassetid://8089467613",Swirl="rbxassetid://5638168605"}
+    S.Tracers.TextureID=m[v] or m.Beam
+end)
+VI:Slider("Tracer Width",0.1,5,1.5,1,function(v) S.Tracers.Width=v end)
+VI:Slider("Tracer Life",0.1,3,0.5,1,function(v) S.Tracers.LifeTime=v end)
+VI:Section("Hit Logs")
+VI:Toggle("Hit Logs",false,function(v) S.HL.Enabled=v end)
+VI:Dropdown("Position",{"Center","Left","Top","LeftTop"},"Center",function(v) S.HL.Position=v end)
+VI:Slider("Log Duration",1,15,5,0,function(v) S.HL.Duration=v end)
+VI:Color("Log Color",S.HL.Color,function(v) S.HL.Color=v end)
+VI:Section("Hitmarker")
+VI:Toggle("Hitmarker",false,function(v) S.HM.Enabled=v end)
+VI:Slider("HM Size",5,40,12,0,function(v) S.HM.Size=v end)
+VI:Slider("HM Thickness",1,5,2,1,function(v) S.HM.Thickness=v end)
+VI:Slider("HM Duration",0.5,6,2.5,1,function(v) S.HM.Duration=v end)
+VI:Color("HM Color",S.HM.Color,function(v) S.HM.Color=v end)
+VI:Color("HM Kill Color",S.HM.KillColor,function(v) S.HM.KillColor=v end)
+VI:Section("Crosshair")
+VI:Toggle("Crosshair",false,function(v) S.CH.Enabled=v end)
+VI:Toggle("CH Rainbow",false,function(v) S.CH.Rainbow=v end)
+VI:Toggle("CH Dot",false,function(v) S.CH.Dot=v end)
+VI:Toggle("CH Pulse",false,function(v) S.CH.Pulse=v end)
+VI:Toggle("CH Follow Target",false,function(v) S.CH.FollowTarget=v end)
+VI:Slider("CH Length",2,40,8,0,function(v) S.CH.Length=v end)
+VI:Slider("CH Gap",0,25,4,0,function(v) S.CH.Gap=v end)
+VI:Slider("CH Rotation",-360,360,0,0,function(v) S.CH.RotationSpeed=v end)
+VI:Slider("CH Thickness",0.5,5,1.5,1,function(v) S.CH.Thickness=v end)
+VI:Color("CH Color",S.CH.Color,function(v) S.CH.Color=v end)
+VI:Section("Damage FX")
+VI:Toggle("Damage Particles",false,function(v) S.DamageFX.Enabled=v end)
+VI:Dropdown("FX Style",{"Foam","Crescents","Residue","Electric"},"Foam",function(v) S.DamageFX.Style=v end)
+VI:Slider("FX Count",1,60,12,0,function(v) S.DamageFX.Count=v end)
+VI:Slider("FX Lifetime",0.2,4,0.8,2,function(v) S.DamageFX.Lifetime=v end)
+VI:Toggle("FX Rainbow",false,function(v) S.DamageFX.Rainbow=v end)
+VI:Section("World")
+VI:Toggle("Fullbright",false,function(v)
+    if v then
+        Light.Brightness=2; Light.ClockTime=14; Light.FogEnd=1e5; Light.GlobalShadows=false; Light.Ambient=Color3.fromRGB(178,178,178)
+    else
+        Light.Brightness=1; Light.ClockTime=14; Light.FogEnd=1e5; Light.GlobalShadows=true
+    end
+end)
+VI:Toggle("X-Ray",false,function(v) S.XRay.Enabled=v end)
+VI:Slider("XRay Transp",0,1,0.5,2,function(v) S.XRay.Transparency=v end)
+VI:Toggle("Custom Water",false,function(v) S.Water.Enabled=v end)
+VI:Color("Water Color",S.Water.Color,function(v) S.Water.Color=v end)
+VI:Section("Tool Outline")
+VI:Toggle("Tool Highlight",false,function(v) S.ToolHL.Enabled=v end)
+VI:Color("Tool Color",S.ToolHL.Color,function(v) S.ToolHL.Color=v end)
+
+-- ===== PLAYER =====
+PL:Section("Movement")
+PL:Toggle("Speed Hack",false,function(v) S.Speed.Enabled=v end)
+PL:Keybind("Speed Key","G",function() S.Speed.Enabled=not S.Speed.Enabled end)
+PL:Slider("Speed Value",0,60,30,0,function(v) S.Speed.Value=v end)
+PL:Toggle("Copter Speed",false,function(v) S.CopterSpeed.Enabled=v end)
+PL:Slider("Copter Speed Val",20,100,50,0,function(v) S.CopterSpeed.Value=v end)
+PL:Toggle("Swim Speed",false,function(v) S.WaterSpeed.Enabled=v end)
+PL:Slider("Swim Speed Val",20,200,50,0,function(v) S.WaterSpeed.Value=v end)
+PL:Toggle("Spider Climb",false,function(v) S.Spider.Enabled=v end)
+PL:Keybind("Spider Key","V",function() S.Spider.Enabled=not S.Spider.Enabled end)
+PL:Slider("Spider Speed",20,150,50,0,function(v) S.Spider.Speed=v end)
+PL:Toggle("Super Jump",false,function(v) S.JumpStun.Enabled=v end)
+PL:Keybind("Jump Key","H",function() S.JumpStun.Enabled=not S.JumpStun.Enabled end)
+PL:Slider("Jump Height",60,200,100,0,function(v) S.JumpStun.Height=v end)
+PL:Toggle("Jump Circles",false,function(v) S.JumpCircle.Enabled=v end)
+PL:Color("Jump Circle Color",S.JumpCircle.Color,function(v) S.JumpCircle.Color=v end)
+PL:Section("Copter Fly")
+PL:Toggle("Copter Fly",false,function(v)
+    if v and F.toggleCopterFly then F.toggleCopterFly() end
+    if not v and F.disableCopterFly then F.disableCopterFly() end
+end)
+PL:Keybind("Fly Key","Z",function()
+    if F.toggleCopterFly then F.toggleCopterFly() end
+end)
+PL:Slider("Fly Speed",50,450,100,0,function(v) S.CopterFly.Speed=v end)
+PL:Section("Camera")
+PL:Toggle("FOV Changer",false,function(v) S.FOVCam.Enabled=v end)
+PL:Slider("FOV Value",50,120,70,0,function(v) S.FOVCam.Value=v end)
+PL:Toggle("Third Person",false,function(v)
+    S.ThirdPerson.Enabled=v
+    pcall(function() LP.CameraMode=v and Enum.CameraMode.Classic or Enum.CameraMode.LockFirstPerson end)
+end)
+PL:Keybind("TP Key","C",function()
+    S.ThirdPerson.Enabled=not S.ThirdPerson.Enabled
+    pcall(function() LP.CameraMode=S.ThirdPerson.Enabled and Enum.CameraMode.Classic or Enum.CameraMode.LockFirstPerson end)
+end)
+PL:Slider("TP Distance",5,50,10,0,function(v) S.ThirdPerson.Distance=v end)
+PL:Slider("TP Height",0,20,0,1,function(v) S.ThirdPerson.Height=v end)
+PL:Section("Character")
+PL:Toggle("Spin Character",false,function(v) S.Spinner.Enabled=v end)
+PL:Keybind("Spin Key","B",function() S.Spinner.Enabled=not S.Spinner.Enabled end)
+PL:Slider("Spin Speed",10,1440,180,0,function(v) S.Spinner.Speed=v end)
+
+-- ===== MISC =====
+MS:Section("Sounds")
+MS:Toggle("Kill Sound",false,function(v) S.KillSound.Enabled=v end)
+MS:Slider("Kill Volume",0,5,1,1,function(v) S.KillSound.Volume=v end)
+MS:Toggle("Hit Sound",false,function(v) S.HitSound.Enabled=v end)
+MS:Dropdown("Hit Sound Choice",{"None","Skeet","Duck","Money","Fart","Meow","Bell","Metal","Growl","Brutal","Hehe"},"None",function(v) S.HitSound.Choice=v end)
+MS:Slider("Hit Sound Vol",0,10,1,1,function(v) S.HitSound.Volume=v end)
+MS:Section("Notifications")
+MS:Toggle("Kill Notify",false,function(v) S.KillNotify=v end)
+MS:Section("Team Check")
+MS:Toggle("Enable Team Check",false,function(v) S.Team.Enabled=v end)
+MS:Label("Список вводится через консоль: F.addTeammate(name)")
+MS:Section("Player List")
+local plrBox=Instance.new("Frame"); plrBox.Size=UDim2.new(1,-8,0,140); plrBox.BackgroundColor3=BARBG
+plrBox.BorderSizePixel=0; plrBox.Parent=pages[4]; stroke(plrBox,BLUE,1)
+local plrScroll=Instance.new("ScrollingFrame"); plrScroll.Size=UDim2.new(1,-4,1,-4); plrScroll.Position=UDim2.new(0,2,0,2)
+plrScroll.BackgroundTransparency=1; plrScroll.BorderSizePixel=0; plrScroll.ScrollBarThickness=3
+plrScroll.ScrollBarImageColor3=BLUE; plrScroll.CanvasSize=UDim2.new(0,0,0,0); plrScroll.Parent=plrBox
+local plrLayout=Instance.new("UIListLayout"); plrLayout.SortOrder=Enum.SortOrder.LayoutOrder; plrLayout.Padding=UDim.new(0,2); plrLayout.Parent=plrScroll
+plrLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() plrScroll.CanvasSize=UDim2.new(0,0,0,plrLayout.AbsoluteContentSize.Y+4) end)
+
+function F.refreshPlayerList()
+    for _,ch in ipairs(plrScroll:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p~=LP then
+            local b=Instance.new("TextButton"); b.Size=UDim2.new(1,-4,0,20); b.BackgroundTransparency=1
+            b.Text=(S.Team.Teammates[p.UserId] and "[+] " or "[-] ")..p.DisplayName
+            b.TextColor3=S.Team.Teammates[p.UserId] and Color3.fromRGB(0,255,0) or WHITE
+            b.Font=Enum.Font.Code; b.TextSize=12; b.TextXAlignment=Enum.TextXAlignment.Left; b.Parent=plrScroll
+            b.MouseButton1Click:Connect(function()
+                if S.Team.Teammates[p.UserId] then S.Team.Teammates[p.UserId]=nil else S.Team.Teammates[p.UserId]=true end
+                F.refreshPlayerList()
+            end)
+        end
+    end
+end
+F.refreshPlayerList()
+Players.PlayerAdded:Connect(function() task.wait(0.5); F.refreshPlayerList() end)
+Players.PlayerRemoving:Connect(function() task.wait(0.2); F.refreshPlayerList() end)
+
+-- ===== FOV CIRCLE GUI =====
+local fovGui=Instance.new("ScreenGui"); fovGui.Name="VomFOV"; fovGui.ResetOnSpawn=false
+fovGui.IgnoreGuiInset=true; pcall(function() fovGui.Parent=CoreGui end)
+local fovFill=Instance.new("Frame"); fovFill.AnchorPoint=V2(0.5,0.5)
+fovFill.BackgroundColor3=WHITE; fovFill.BackgroundTransparency=0.93
+fovFill.BorderSizePixel=0; fovFill.Visible=false; fovFill.Parent=fovGui
+Instance.new("UICorner",fovFill).CornerRadius=UDim.new(0.5,0)
+local fovStroke=Instance.new("UIStroke"); fovStroke.Color=WHITE; fovStroke.Thickness=1.5; fovStroke.Transparency=0.25; fovStroke.Parent=fovFill
+
+-- ===== AIM =====
+local rayParams=RaycastParams.new(); rayParams.FilterType=Enum.RaycastFilterType.Exclude; rayParams.IgnoreWater=true
+local function getIgnoreList()
+    local list={LP.Character,cam}
+    for p in next,F.playerCache do if p.Character then list[#list+1]=p.Character end end
+    return list
+end
+function F.pointVisible(char,target)
+    if not cam then return false end
+    local origin=cam.CFrame.Position
+    rayParams.FilterDescendantsInstances=getIgnoreList()
+    local dir=target-origin
+    if dir.Magnitude<=0.01 then return true end
+    local r=WS:Raycast(origin,dir,rayParams)
+    if not r then return true end
+    return r.Instance and r.Instance:IsDescendantOf(char) or false
+end
+
+function F.getClosestSA()
+    local bestPart,bestPos,bestScore=nil,nil,math.huge
+    local vp=cam.ViewportSize; local fovOrigin=V2(vp.X*0.5,vp.Y*0.5)
+    local myRoot=F.char and F.char:FindFirstChild("HumanoidRootPart")
+    local myPos=myRoot and myRoot.Position or cam.CFrame.Position
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p~=LP and not isTeammate(p) then
+            local ch=p.Character
+            if ch then
+                local hum=ch:FindFirstChildWhichIsA("Humanoid")
+                if hum and hum.Health>0 then
+                    local part=ch:FindFirstChild(S.SA.TargetPart) or ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChild("Head")
+                    if part then
+                        local dist=(part.Position-myPos).Magnitude
+                        if dist<=S.SA.MaxDistance then
+                            if S.SA.VisibleCheck and not F.pointVisible(ch,part.Position) then
+                            else
+                                local sp,on=cam:WorldToViewportPoint(part.Position)
+                                if on then
+                                    local fovDist=(fovOrigin-V2(sp.X,sp.Y)).Magnitude
+                                    if fovDist<=S.SA.FOVRadius then
+                                        local score=S.SA.TargetMode=="Cursor" and fovDist or dist
+                                        if score<bestScore then bestScore=score; bestPart=part; bestPos=part.Position end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return bestPart,bestPos
+end
+
+function F.getClosestRage()
+    local bestPart,bestPos,bestScore=nil,nil,math.huge
+    local myRoot=F.char and F.char:FindFirstChild("HumanoidRootPart")
+    local myPos=myRoot and myRoot.Position or cam.CFrame.Position
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p~=LP and not isTeammate(p) then
+            local ch=p.Character
+            if ch then
+                local hum=ch:FindFirstChildWhichIsA("Humanoid")
+                if hum and hum.Health>0 then
+                    local part=ch:FindFirstChild(S.Rage.TargetPart) or ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChild("Head")
+                    if part then
+                        local dist=(part.Position-myPos).Magnitude
+                        if dist<=S.Rage.MaxDistance then
+                            if S.Rage.VisibleCheck and not F.pointVisible(ch,part.Position) then
+                            else
+                                if dist<bestScore then bestScore=dist; bestPart=part; bestPos=part.Position end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return bestPart,bestPos
+end
+
+-- ===== HOOK SILENT AIM =====
+if hookmetamethod and getnamecallmethod and newcclosure then
+    local old
+    old=hookmetamethod(game,"__namecall",newcclosure(function(self,...)
+        local m=getnamecallmethod()
+        if m=="FireServer" and S.SA.Enabled and F.targetPos then
+            if math.random(1,100)<=(S.SA.HitChance or 100) then
+                local a=table.pack(...)
+                for i=1,a.n do
+                    local v=a[i]
+                    if typeof(v)=="Vector3" then a[i]=F.targetPos
+                    elseif typeof(v)=="CFrame" then a[i]=CF.new(F.targetPos) end
+                end
+                return old(self,unpack(a,1,a.n))
+            end
+        elseif m=="Raycast" and self==WS then
+            if checkcaller() then return old(self,...) end
+            local origin,dir,rp=...
+            if typeof(origin)=="Vector3" and typeof(dir)=="Vector3" then
+                if S.SA.Enabled and F.targetPos then
+                    local mag=dir.Magnitude
+                    local no=S.Manipulation and cam.CFrame.Position or origin
+                    local nd=(F.targetPos-no).Unit*mag
+                    return old(self,no,nd,rp)
+                end
+            end
+        end
+        return old(self,...)
+    end))
+end
+
+-- ===== ESP =====
+local espGui=Instance.new("ScreenGui"); espGui.Name="VomESP"; espGui.ResetOnSpawn=false
+espGui.IgnoreGuiInset=true; pcall(function() espGui.Parent=CoreGui end)
+local espCache={}
+
+local function mkESP(plr)
+    local holder=Instance.new("Frame"); holder.BackgroundTransparency=1; holder.Visible=false; holder.Parent=espGui
+    local box=Instance.new("Frame"); box.Size=UDim2.fromScale(1,1); box.BackgroundTransparency=1
+    box.BorderSizePixel=0; box.Parent=holder
+    local outer=stroke(box,BLACK or Color3.new(0,0,0),2)
+    local inline=Instance.new("Frame"); inline.Size=UDim2.fromScale(1,1); inline.BackgroundTransparency=1
+    inline.BorderSizePixel=0; inline.Parent=holder
+    local ilStroke=stroke(inline,S.ESPColors.Box,1)
+    local name=mkLabel(holder,plr.DisplayName,0,0,10,10,12,WHITE); name.AnchorPoint=V2(0.5,1)
+    name.Position=UDim2.new(0.5,0,0,-4); name.AutomaticSize=Enum.AutomaticSize.XY; name.Size=UDim2.fromOffset(0,0)
+    local dist=mkLabel(holder,"0",0,0,10,10,10,WHITE); dist.AnchorPoint=V2(0.5,0)
+    dist.Position=UDim2.new(0.5,0,1,3); dist.AutomaticSize=Enum.AutomaticSize.XY; dist.Size=UDim2.fromOffset(0,0)
+    local hpBg=Instance.new("Frame"); hpBg.AnchorPoint=V2(1,0); hpBg.Position=UDim2.new(0,-4,0,0)
+    hpBg.Size=UDim2.new(0,4,1,0); hpBg.BackgroundColor3=Color3.fromRGB(10,10,10)
+    hpBg.BorderSizePixel=0; hpBg.Visible=false; hpBg.Parent=holder; stroke(hpBg,Color3.new(0,0,0),1)
+    local hp=Instance.new("Frame"); hp.AnchorPoint=V2(0,1); hp.Position=UDim2.new(0,0,1,0)
+    hp.Size=UDim2.new(1,0,1,0); hp.BackgroundColor3=Color3.fromRGB(0,255,0); hp.BorderSizePixel=0; hp.Parent=hpBg
+    local chams=nil
+    espCache[plr]={Holder=holder,Box=box,Inline=ilStroke,Name=name,Dist=dist,HpBg=hpBg,Hp=hp,Chams=chams}
+    return espCache[plr]
+end
+
+local function rmESP(plr)
+    local d=espCache[plr]
+    if d then
+        pcall(function()
+            if d.Chams then d.Chams:Destroy() end
+            d.Holder:Destroy()
+        end)
+        espCache[plr]=nil
+    end
+end
+Players.PlayerRemoving:Connect(rmESP)
+
+function F.updateESP()
+    if S.Unloaded then return end
+    if not S.ESP.Enabled and not S.Team.Enabled then
+        for _,d in pairs(espCache) do d.Holder.Visible=false end
+        return
+    end
+    local myRoot=F.char and F.char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    for plr in next,F.playerCache do
+        local d=espCache[plr]
+        local mate=isTeammate(plr)
+        if not S.ESP.Enabled and not mate then
+            if d then d.Holder.Visible=false end
+        else
+            local ch=plr.Character
+            local hrp=ch and ch:FindFirstChild("HumanoidRootPart")
+            local hum=ch and ch:FindFirstChildWhichIsA("Humanoid")
+            if ch and hrp and hum and hum.Health>0 then
+                local dist=(myRoot.Position-hrp.Position).Magnitude
+                if dist<=S.ESP.MaxDistance then
+                    local sp,on=cam:WorldToViewportPoint(hrp.Position)
+                    if sp.Z>1 and (on or (sp.X>-80 and sp.X<cam.ViewportSize.X+80 and sp.Y>-80 and sp.Y<cam.ViewportSize.Y+80)) then
+                        if not d then d=mkESP(plr) end
+                        local vp=cam.ViewportSize
+                        local proj=vp.Y/(2*math.tan(rad(cam.FieldOfView)*0.5))
+                        local h=clamp((7*proj)/sp.Z,5,vp.Y*0.82)
+                        local w=math.max(h*0.6,3)
+                        d.Holder.Visible=true
+                        d.Holder.Position=UDim2.fromOffset(floor(sp.X-w*0.5),floor(sp.Y-h*0.52))
+                        d.Holder.Size=UDim2.fromOffset(floor(w),floor(h))
+                        local col=mate and S.Team.Color or S.ESPColors.Box
+                        d.Box.Visible=S.ESP.Box or mate
+                        d.Inline.Color=col
+                        d.Name.Visible=S.ESP.Name or mate
+                        d.Name.Text=plr.DisplayName
+                        d.Dist.Visible=S.ESP.Distance
+                        d.Dist.Text=floor(dist).."m"
+                        d.HpBg.Visible=S.ESP.HealthBar
+                        if S.ESP.HealthBar then d.Hp.Size=UDim2.new(1,0,clamp(hum.Health/hum.MaxHealth,0,1),0) end
+                        if S.ESP.Chams then
+                            if not d.Chams or not d.Chams.Parent then
+                                local hl=Instance.new("Highlight"); hl.Adornee=ch
+                                hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop
+                                hl.FillTransparency=1-clamp(S.ESP.ChamsStrength/100,0,1)
+                                hl.FillColor=col; hl.OutlineColor=col; hl.OutlineTransparency=0.3; hl.Parent=ch
+                                d.Chams=hl
+                            end
+                        elseif d.Chams then d.Chams:Destroy(); d.Chams=nil end
+                    else
+                        if d then d.Holder.Visible=false end
+                    end
+                else
+                    if d then d.Holder.Visible=false end
+                end
+            else
+                if d then d.Holder.Visible=false end
+            end
+        end
+    end
+end
+
+-- ===== HITBOX =====
+local enlarged={}
+function F.RestoreAllHitboxes()
+    for obj,orig in pairs(enlarged) do
+        if obj and obj.Parent then
+            obj.Size=orig.Size; obj.Color=orig.Color; obj.Transparency=orig.Transparency; obj.Material=orig.Material
+        end
+    end
+    enlarged={}
+end
+function F.UpdateAllHitboxes()
+    for obj,orig in pairs(enlarged) do
+        if obj and obj.Parent then
+            obj.Size=orig.Size*S.Hitbox.Size; obj.Color=S.Hitbox.Color; obj.Transparency=S.Hitbox.Transparency
+        end
+    end
+end
+function F.ApplyHitboxVisuals()
+    for obj in pairs(enlarged) do
+        if obj and obj.Parent then obj.Transparency=S.Hitbox.Transparency; obj.Color=S.Hitbox.Color end
+    end
+end
+function F.InitHitboxWatchers()
+    task.spawn(function()
+        for _,p in ipairs(Players:GetPlayers()) do
+            if p~=LP and p.Character then
+                local hb=p.Character:FindFirstChild("HeadHitbox")
+                if hb and not enlarged[hb] then
+                    enlarged[hb]={Size=hb.Size,Color=hb.Color,Transparency=hb.Transparency,Material=hb.Material}
+                    if S.Hitbox.Enabled then
+                        hb.Size=hb.Size*S.Hitbox.Size; hb.Color=S.Hitbox.Color
+                        hb.Transparency=S.Hitbox.Transparency; hb.Material=Enum.Material.Neon
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- ===== TRACERS =====
+local tracers={}
+function F.createTrace(a,b)
+    if S.Unloaded then return end
+    local p=Instance.new("Part"); p.Anchored=true; p.CanCollide=false; p.Transparency=1
+    p.Size=V3(0.1,0.1,0.1); p.Parent=WS
+    local a0=Instance.new("Attachment",p); local a1=Instance.new("Attachment",p)
+    a0.WorldPosition=a; a1.WorldPosition=b
+    local beam=Instance.new("Beam"); beam.Attachment0=a0; beam.Attachment1=a1
+    beam.FaceCamera=true; beam.LightEmission=1; beam.LightInfluence=0
+    beam.Texture=S.Tracers.TextureID; beam.TextureLength=2; beam.TextureSpeed=2
+    beam.Color=ColorSequence.new(S.Tracers.Color); beam.Width0=S.Tracers.Width; beam.Width1=S.Tracers.Width
+    beam.Transparency=NumberSequence.new(S.Tracers.Transparency); beam.Parent=p
+    tracers[#tracers+1]={p=p,b=beam,t=tick()}
+end
+function F.updateTracers()
+    for i=#tracers,1,-1 do
+        local tr=tracers[i]
+        if not tr.p or not tr.p.Parent then table.remove(tracers,i)
+        elseif tick()-tr.t>S.Tracers.LifeTime then
+            pcall(function() tr.p:Destroy() end); table.remove(tracers,i)
+        end
+    end
+end
+
+-- ===== CROSSHAIR =====
+local chLines={}
+if DrawingOK then
+    for i=1,4 do
+        local l=Drawing.new("Line"); l.Visible=false; l.Thickness=S.CH.Thickness; l.Color=S.CH.Color; chLines[i]=l
+    end
+end
+function F.updateCrosshair(dt)
+    if not DrawingOK then return end
+    if not S.CH.Enabled or S.Unloaded then
+        for _,l in ipairs(chLines) do l.Visible=false end
+        return
+    end
+    local vp=cam.ViewportSize
+    local cx,cy=vp.X*0.5,vp.Y*0.5
+    local col=S.CH.Color
+    for i=0,3 do
+        local l=chLines[i+1]
+        local ang=rad(i*90)
+        local dx,dy=cos(ang),sin(ang)
+        l.Visible=true; l.Color=col
+        l.From=V2(cx+dx*S.CH.Gap,cy+dy*S.CH.Gap)
+        l.To=V2(cx+dx*(S.CH.Gap+S.CH.Length),cy+dy*(S.CH.Gap+S.CH.Length))
+    end
+end
+
+-- ===== DAMAGE FX =====
+function F.spawnDamageFX(pos,scale)
+    if S.Unloaded or not S.DamageFX.Enabled then return end
+    scale=scale or 1
+    local p=Instance.new("Part"); p.Size=V3(0.2,0.2,0.2); p.Transparency=1
+    p.Anchored=true; p.CanCollide=false; p.CanQuery=false; p.Position=pos+V3(0,1,0); p.Parent=WS
+    local att=Instance.new("Attachment",p)
+    local e=Instance.new("ParticleEmitter"); e.Enabled=false
+    e.Color=ColorSequence.new(S.DamageFX.Color)
+    e.Lifetime=NumberRange.new(S.DamageFX.Lifetime)
+    e.Speed=NumberRange.new(S.DamageFX.Speed)
+    e.SpreadAngle=V2(360,-360); e.Rate=100
+    e.Size=NumberSequence.new({
+        NumberSequenceKeypoint.new(0,0),
+        NumberSequenceKeypoint.new(0.5,S.DamageFX.Size*4),
+        NumberSequenceKeypoint.new(1,0)
+    })
+    e.Transparency=NumberSequence.new({
+        NumberSequenceKeypoint.new(0,0),
+        NumberSequenceKeypoint.new(1,1)
+    })
+    e.Texture="rbxassetid://8297030850"; e.Parent=att
+    e:Emit(math.max(1,floor(S.DamageFX.Count*scale)))
+    Debris:AddItem(p,S.DamageFX.Lifetime+1.2)
+end
+
+-- ===== MOVEMENT/FLY/SPIN =====
+function F.toggleCopterFly()
+    local hum=F.hum
+    if S.CopterFly.Enabled then
+        S.CopterFly.Enabled=false
+        if S.CopterFly.bodyVel then pcall(function() S.CopterFly.bodyVel:Destroy() end); S.CopterFly.bodyVel=nil end
+        if S.CopterFly.bodyGyro then pcall(function() S.CopterFly.bodyGyro:Destroy() end); S.CopterFly.bodyGyro=nil end
+        if hum then hum.AutoRotate=true end
+        return
+    end
+    if hum and hum.SeatPart then
+        S.CopterFly.Enabled=true; hum.AutoRotate=false
+        local target=hum.SeatPart
+        local bv=Instance.new("BodyVelocity",target); bv.MaxForce=V3(1,1,1)*9e9; bv.Velocity=V3(0,0,0)
+        local bg=Instance.new("BodyGyro",target); bg.MaxTorque=V3(1,1,1)*9e9; bg.P=9000; bg.CFrame=target.CFrame
+        S.CopterFly.bodyVel=bv; S.CopterFly.bodyGyro=bg
+    end
+end
+function F.disableCopterFly()
+    if S.CopterFly.bodyVel then pcall(function() S.CopterFly.bodyVel:Destroy() end); S.CopterFly.bodyVel=nil end
+    if S.CopterFly.bodyGyro then pcall(function() S.CopterFly.bodyGyro:Destroy() end); S.CopterFly.bodyGyro=nil end
+    local hum=F.hum; if hum then hum.AutoRotate=true end
+    S.CopterFly.Enabled=false
+end
+function F.copterFlyStep(hum)
+    if not hum or not hum.SeatPart then F.disableCopterFly(); return end
+    local target=hum.SeatPart
+    local mv=V3(0,0,0); local cf=cam.CFrame
+    if UIS:IsKeyDown(Enum.KeyCode.W) then mv=mv+cf.LookVector end
+    if UIS:IsKeyDown(Enum.KeyCode.S) then mv=mv-cf.LookVector end
+    if UIS:IsKeyDown(Enum.KeyCode.D) then mv=mv+cf.RightVector end
+    if UIS:IsKeyDown(Enum.KeyCode.A) then mv=mv-cf.RightVector end
+    local vert=0
+    if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then vert=1 end
+    if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then vert=-1 end
+    hum.Sit=true
+    if S.CopterFly.bodyVel and S.CopterFly.bodyVel.Parent==target then
+        if mv.Magnitude>0 or vert~=0 then
+            S.CopterFly.bodyVel.Velocity=(mv+V3(0,vert,0)).Unit*S.CopterFly.Speed
+        else
+            S.CopterFly.bodyVel.Velocity=V3(0,0,0)
+        end
+    end
+    if S.CopterFly.bodyGyro and S.CopterFly.bodyGyro.Parent==target then
+        S.CopterFly.bodyGyro.CFrame=cf
+    end
+end
+
+-- ===== MAIN LOOP =====
+local spRay=RaycastParams.new(); spRay.FilterType=Enum.RaycastFilterType.Exclude; spRay.IgnoreWater=true
+RunService.Heartbeat:Connect(function(dt)
+    if S.Unloaded then return end
+    F.updateTracers()
+    local ch=F.char
+    if not ch then return end
+    local hrp=ch:FindFirstChild("HumanoidRootPart")
+    local hum=F.hum
+    if not hrp or not hum or hum.Health<=0 then return end
+    if S.Speed.Enabled then
+        local md=hum.MoveDirection
+        if md.Magnitude>0 then hrp.AssemblyLinearVelocity=V3(md.X*S.Speed.Value,hrp.AssemblyLinearVelocity.Y,md.Z*S.Speed.Value) end
+    end
+    if S.CopterSpeed.Enabled and hum.Sit then
+        local md=hum.MoveDirection
+        if md.Magnitude>0 then hrp.AssemblyLinearVelocity=V3(md.X*S.CopterSpeed.Value,hrp.AssemblyLinearVelocity.Y,md.Z*S.CopterSpeed.Value) end
+    end
+    if S.WaterSpeed.Enabled then
+        if hum:GetState()==Enum.HumanoidStateType.Swimming then
+            local bv=hrp:FindFirstChild("WSV")
+            if not bv then bv=Instance.new("BodyVelocity",hrp); bv.Name="WSV"; bv.MaxForce=V3(1e5,1e5,1e5) end
+            bv.Velocity=hum.MoveDirection*S.WaterSpeed.Value
+        else
+            local bv=hrp:FindFirstChild("WSV"); if bv then bv:Destroy() end
+        end
+    end
+    if S.Spider.Enabled and UIS:IsKeyDown(Enum.KeyCode.W) then
+        spRay.FilterDescendantsInstances={ch}
+        local r=WS:Raycast(hrp.Position,hrp.CFrame.LookVector*2.5,spRay)
+        if r and r.Instance and r.Instance:IsA("BasePart") and r.Instance.CanCollide and abs(r.Normal.Y)<0.5 then
+            hrp.AssemblyLinearVelocity=V3(hrp.AssemblyLinearVelocity.X,S.Spider.Speed,hrp.AssemblyLinearVelocity.Z)
+        end
+    end
+    if S.CopterFly.Enabled then F.copterFlyStep(hum) end
+    if S.Spinner.Enabled then
+        hum.AutoRotate=false
+        hrp.CFrame=hrp.CFrame*CFrame.Angles(0,rad(S.Spinner.Speed*dt),0)
+    end
+end)
+
+local nTarget,nESP=0,0
+RunService.RenderStepped:Connect(function(dt)
+    if S.Unloaded then return end
+    local c=WS.CurrentCamera
+    if c then cam=c end
+    local now=tick()
+
+    if S.ThirdPerson.Enabled then
+        local hrp=F.char and F.char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local focus=hrp.Position+V3(0,S.ThirdPerson.Height,0)
+            local look=cam.CFrame.LookVector
+            cam.CFrame=CFrame.lookAt(focus-look*S.ThirdPerson.Distance,focus)
+        end
+    end
+    if S.FOVCam.Enabled then cam.FieldOfView=S.FOVCam.Value end
+
+    if F.aimEnabled and F.aimEnabled() then
+    else
+        if S.SA.Enabled or S.Rage.Enabled then
+            if now>=nTarget then
+                nTarget=now+0.01
+                local part,pos
+                if S.Rage.Enabled then part,pos=F.getClosestRage() else part,pos=F.getClosestSA() end
+                F.targetPart=part; F.targetPos=pos
+            end
+        else
+            F.targetPart=nil; F.targetPos=nil
+        end
+    end
+
+    if F.targetPos then
+        local sp=cam:WorldToViewportPoint(F.targetPos)
+        F.aimScreenPos=sp and V2(sp.X,sp.Y) or nil
+    else
+        F.aimScreenPos=nil
+    end
+
+    if S.SA.ShowFOV and S.SA.Enabled then
+        fovFill.Visible=true
+        local vp=cam.ViewportSize
+        fovFill.Position=UDim2.new(0,vp.X*0.5,0,vp.Y*0.5)
+        fovFill.Size=UDim2.new(0,S.SA.FOVRadius*2,0,S.SA.FOVRadius*2)
+        local col=F.targetPart and Color3.fromRGB(255,0,0) or WHITE
+        fovFill.BackgroundColor3=col; fovStroke.Color=col
+    else
+        fovFill.Visible=false
+    end
+
+    F.updateCrosshair(dt)
+    if now>=nESP then nESP=now+0.016; F.updateESP() end
+end)
+
+-- ===== INPUT =====
+UIS.InputBegan:Connect(function(i,gp)
+    if gp then return end
+    if i.UserInputType==Enum.UserInputType.MouseButton1 then
+        if S.SA.Enabled and F.targetPart then
+            local plr=F.targetPart.Parent and Players:GetPlayerFromCharacter(F.targetPart.Parent)
+            if plr then F.lastConfirmedShotPlayer=plr; F.lastConfirmedShotTime=clock() end
+        end
+    end
+end)
+
+-- ===== KILL SOUNDS =====
+local killTimes={}
+function F.playKillSound()
+    if not S.KillSound.Enabled then return end
+    local now=clock()
+    killTimes[#killTimes+1]=now
+    for i=#killTimes,1,-1 do if now-killTimes[i]>10 then table.remove(killTimes,i) end end
+    local s=Instance.new("Sound"); s.Volume=S.KillSound.Volume; s.Parent=SS
+    local KILL_SOUNDS={"6350854289","132050044560917","125662494668382","130940311850179"}
+    s.SoundId="rbxassetid://"..KILL_SOUNDS[math.random(#KILL_SOUNDS)]
+    s:Play(); Debris:AddItem(s,6)
+end
+
+Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(function(c)
+        task.wait(1)
+        local hum=c:WaitForChild("Humanoid",10)
+        if hum then
+            local lastHealth=hum.Health
+            hum.HealthChanged:Connect(function(new)
+                if new<lastHealth-0.05 and (S.SA.Enabled or S.Rage.Enabled) then
+                    local isTarget=F.targetPart and F.targetPart.Parent==c
+                    if isTarget or (F.lastConfirmedShotPlayer==p and clock()-F.lastConfirmedShotTime<3) then
+                        if S.DamageFX.Enabled then F.spawnDamageFX(c.HumanoidRootPart.Position,1) end
+                        if S.KillSound.Enabled and new<=0 then F.playKillSound() end
+                    end
+                end
+                lastHealth=new
+            end)
+        end
+    end)
+end)
+
+-- ===== UNLOAD =====
+function F.unload()
+    S.Unloaded=true
+    pcall(function() ScreenGui:Destroy() end)
+    pcall(function() fovGui:Destroy() end)
+    pcall(function() espGui:Destroy() end)
+    for _,c in pairs(F.conns) do pcall(function() c:Disconnect() end) end
+    F.conns={}
+    pcall(F.RestoreAllHitboxes)
+    pcall(F.disableCopterFly)
+    for _,l in ipairs(chLines) do pcall(function() l:Remove() end) end
+    for _,tr in ipairs(tracers) do pcall(function() tr.p:Destroy() end) end
+end
+getgenv().__VOMAGLA_UNLOAD=F.unload
+
+print("[VOMAGLA] Loaded. UI: VomaglaNyxon")
