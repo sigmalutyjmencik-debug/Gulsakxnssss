@@ -291,15 +291,16 @@ MakeText(TitleBar, "Epstein Hub | dsc.gg/epstein", UDim2.fromOffset(12, 0), UDim
 
 MakeLine(Main, 41)
 
--- SIDE PANEL (РІРЅСѓС‚СЂРё Main, Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓРіРѕР»)
+-- SIDE PANEL (РІ ScreenGui, СЃР»РµРІР° 9%, РїРѕ С†РµРЅС‚СЂСѓ X, СЃРЅРёР·Сѓ 14%)
 local Side = Instance.new("Frame")
 Side.Name = "SidePanel"
 Side.Size = UDim2.fromOffset(140, 76)
-Side.Position = UDim2.fromOffset(8, 48)
+Side.AnchorPoint = Vector2.new(0.5, 1)
+Side.Position = UDim2.new(0.09, 0, 0.86, 0)
 Side.BackgroundColor3 = BG
 Side.BorderSizePixel = 0
 Side.ZIndex = 100
-Side.Parent = Main
+Side.Parent = ScreenGui
 MakeStroke(Side, 1)
 
 local ToggleButton = Instance.new("TextButton")
@@ -341,13 +342,6 @@ local MainVisible = true
 ToggleButton.MouseButton1Click:Connect(function()
     MainVisible = not MainVisible
     Main.Visible = MainVisible
-    if not MainVisible then
-        Main.Visible = false
-        Side.Visible = false
-    else
-        Main.Visible = true
-        Side.Visible = true
-    end
 end)
 
 local Locked = false
@@ -368,7 +362,6 @@ UIS.InputBegan:Connect(function(input, gp)
         if input.KeyCode.Name == S.UIToggleKey then
             MainVisible = not MainVisible
             Main.Visible = MainVisible
-            Side.Visible = MainVisible
         end
     end
 end)
